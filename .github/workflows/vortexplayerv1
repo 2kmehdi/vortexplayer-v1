@@ -1,0 +1,934 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width,initial-scale=1" />
+  <title>Vortex Player</title>
+
+  <!-- ==========================================
+   ✅ MONETAG PLACE #1 (MultiTag) - paste Monetag MultiTag here
+   Monetag → Sites → Add zone → MultiTag → copy script
+   Paste EXACTLY what Monetag gives you below this line.
+  =========================================== -->
+  <!-- MONETAG_MULTITAG_HERE -->
+
+  <!-- HLS.js for .m3u8 playback (Chrome/Edge/Firefox) -->
+  <script src="https://cdn.jsdelivr.net/npm/hls.js@latest"></script>
+
+  <style>
+    :root{
+      --bg:#0b0f19;
+      --card:#111a2e;
+      --border:#24345f;
+      --muted: rgba(232,238,252,.78);
+      --text:#e8eefc;
+      --accent:#f6c453;
+      --shadow: 0 20px 70px rgba(0,0,0,.45);
+      --radius: 18px;
+    }
+
+    *{ box-sizing:border-box; }
+    body{
+      margin:0;
+      font-family: Inter, system-ui, -apple-system, Segoe UI, Roboto, Arial, sans-serif;
+      color:var(--text);
+      background: radial-gradient(1200px 600px at 70% 10%, rgba(246,196,83,.15), transparent 60%),
+                  radial-gradient(900px 500px at 20% 0%, rgba(98,130,255,.15), transparent 55%),
+                  var(--bg);
+      min-height:100vh;
+    }
+
+    .wrap{
+      max-width: 1120px;
+      margin: 0 auto;
+      padding: 18px 18px 36px;
+    }
+
+    /* ===== HERO PLAYER ===== */
+    .hero{
+      position:relative;
+      border-radius: var(--radius);
+      overflow:hidden;
+      background:#000;
+      box-shadow: var(--shadow);
+      border:1px solid rgba(255,255,255,.06);
+    }
+
+    /* Background poster layer (blur/dim) */
+    .hero::before{
+      content:"";
+      position:absolute; inset:0;
+      background-image: var(--bgPoster);
+      background-size: cover;
+      background-position: center;
+      filter: blur(16px) brightness(.7);
+      transform: scale(1.08);
+      opacity:.9;
+      z-index:0;
+    }
+
+    /* Gradient overlay for readability */
+    .hero::after{
+      content:"";
+      position:absolute; inset:0;
+      background: linear-gradient(180deg, rgba(0,0,0,.25) 0%, rgba(0,0,0,.55) 55%, rgba(0,0,0,.78) 100%);
+      z-index:0;
+    }
+
+    .videoStage{
+      position:relative;
+      aspect-ratio: 16 / 9;
+      z-index:1;
+    }
+
+    video{
+      width:100%;
+      height:100%;
+      object-fit: cover;
+      display:block;
+      background:#000;
+    }
+
+    /* ===== Custom controls ===== */
+    .controls{
+      position:absolute;
+      left:0; right:0; bottom:0;
+      padding: 12px 12px 10px;
+      display:flex;
+      flex-direction: column;
+      gap:10px;
+      z-index: 3;
+      background: linear-gradient(180deg, transparent 0%, rgba(0,0,0,.55) 35%, rgba(0,0,0,.75) 100%);
+    }
+
+    .progressRow{
+      display:flex;
+      align-items:center;
+      gap:10px;
+    }
+
+    .progress{
+      width:100%;
+      height: 6px;
+      border-radius: 999px;
+      background: rgba(255,255,255,.18);
+      cursor:pointer;
+      position:relative;
+      overflow:hidden;
+    }
+    .progressFill{
+      position:absolute; left:0; top:0; bottom:0;
+      width:0%;
+      background: var(--accent);
+    }
+
+    .btnRow{
+      display:flex;
+      align-items:center;
+      justify-content: space-between;
+      gap:12px;
+    }
+
+    .leftBtns, .rightBtns{
+      display:flex;
+      align-items:center;
+      gap:10px;
+      flex-wrap:wrap;
+    }
+
+    .btn{
+      display:inline-flex;
+      align-items:center;
+      justify-content:center;
+      gap:8px;
+      padding: 9px 10px;
+      border-radius: 12px;
+      border:1px solid rgba(255,255,255,.14);
+      background: rgba(10,14,25,.40);
+      color: var(--text);
+      cursor:pointer;
+      user-select:none;
+      backdrop-filter: blur(10px);
+    }
+    .btn:hover{ filter: brightness(1.08); }
+
+    .time{
+      font-size: 13px;
+      color: var(--muted);
+      min-width: 115px;
+      text-align:center;
+    }
+
+    .range{
+      width: 120px;
+      accent-color: var(--accent);
+    }
+
+    /* ===== INFO PANEL ===== */
+    .info{
+      position: relative;
+      z-index: 2;
+      padding: 16px;
+    }
+
+    .metaCard{
+      display:grid;
+      grid-template-columns: 88px 1fr;
+      gap: 14px;
+      align-items: start;
+      background: rgba(8,10,16,.55);
+      border: 1px solid rgba(255,255,255,.08);
+      border-radius: 16px;
+      padding: 14px;
+      backdrop-filter: blur(10px);
+    }
+
+    .poster{
+      width:88px; height:132px;
+      border-radius: 12px;
+      overflow:hidden;
+      border: 1px solid rgba(255,255,255,.10);
+      background:#000;
+    }
+    .poster img{
+      width:100%; height:100%;
+      object-fit: cover;
+      display:block;
+    }
+
+    .titleRow{
+      display:flex;
+      align-items: baseline;
+      gap:10px;
+      flex-wrap: wrap;
+    }
+
+    .title{
+      font-size: 20px;
+      font-weight: 750;
+      letter-spacing:.2px;
+      margin:0;
+    }
+    .year{
+      color: var(--muted);
+      font-size: 14px;
+      font-weight: 600;
+    }
+
+    .desc{
+      margin: 8px 0 10px;
+      color: rgba(232,238,252,.88);
+      line-height: 1.35;
+      font-size: 13.6px;
+    }
+
+    .tags{
+      display:flex;
+      gap:8px;
+      flex-wrap: wrap;
+      margin: 6px 0 10px;
+    }
+    .tag{
+      font-size: 11px;
+      padding: 5px 9px;
+      border-radius: 999px;
+      border: 1px solid rgba(255,255,255,.12);
+      background: rgba(255,255,255,.06);
+      color: rgba(232,238,252,.86);
+    }
+    .tag.primary{
+      background: rgba(246,196,83,.16);
+      border-color: rgba(246,196,83,.22);
+      color: rgba(246,196,83,.95);
+      font-weight: 700;
+    }
+
+    .credits{
+      display:grid;
+      grid-template-columns: 1fr;
+      gap:6px;
+      color: var(--muted);
+      font-size: 12.5px;
+    }
+    .credits b{ color: rgba(232,238,252,.92); font-weight: 700; }
+
+    /* ===== Playlist ===== */
+    .below{
+      margin-top: 14px;
+      display:grid;
+      grid-template-columns: 1.25fr .75fr;
+      gap:14px;
+      align-items:start;
+    }
+
+    .panel{
+      background: rgba(17,26,46,.72);
+      border: 1px solid rgba(255,255,255,.08);
+      border-radius: var(--radius);
+      box-shadow: var(--shadow);
+      overflow:hidden;
+    }
+
+    .panelHeader{
+      padding: 12px 14px;
+      border-bottom: 1px solid rgba(255,255,255,.08);
+      display:flex;
+      align-items:center;
+      justify-content: space-between;
+      gap: 10px;
+      flex-wrap: wrap;
+    }
+
+    .panelHeader h2{
+      margin:0;
+      font-size: 14px;
+      letter-spacing:.2px;
+    }
+
+    .selects{
+      display:flex;
+      gap:8px;
+      flex-wrap: wrap;
+    }
+    select{
+      padding: 9px 10px;
+      border-radius: 12px;
+      border: 1px solid rgba(255,255,255,.14);
+      background: rgba(10,14,25,.40);
+      color: var(--text);
+      outline:none;
+      cursor:pointer;
+    }
+
+    .episodeList{
+      padding: 10px;
+      display:flex;
+      flex-direction: column;
+      gap: 8px;
+      max-height: 360px;
+      overflow:auto;
+    }
+
+    .ep{
+      display:flex;
+      align-items:center;
+      gap:10px;
+      padding: 10px;
+      border-radius: 14px;
+      border: 1px solid rgba(255,255,255,.10);
+      background: rgba(0,0,0,.18);
+      cursor:pointer;
+    }
+    .ep:hover{ filter: brightness(1.06); }
+    .ep.active{
+      border-color: rgba(246,196,83,.35);
+      background: rgba(246,196,83,.12);
+    }
+
+    .thumb{
+      width: 64px;
+      height: 40px;
+      border-radius: 10px;
+      overflow:hidden;
+      border: 1px solid rgba(255,255,255,.10);
+      background:#000;
+      flex: 0 0 auto;
+    }
+    .thumb img{
+      width:100%; height:100%;
+      object-fit: cover;
+      display:block;
+    }
+
+    .epText{
+      display:flex;
+      flex-direction: column;
+      gap:3px;
+      min-width: 0;
+      flex: 1 1 auto;
+    }
+    .epTitle{
+      font-size: 13px;
+      font-weight: 750;
+      white-space: nowrap;
+      overflow: hidden;
+      text-overflow: ellipsis;
+    }
+    .epSub{
+      font-size: 12px;
+      color: var(--muted);
+      white-space: nowrap;
+      overflow: hidden;
+      text-overflow: ellipsis;
+    }
+
+    /* ===== Ads panel ===== */
+    .adsBox{
+      padding: 12px 14px 14px;
+    }
+    .adsHint{
+      color: var(--muted);
+      font-size: 12px;
+      margin: 0 0 10px;
+      line-height: 1.35;
+    }
+
+    .adSlot{
+      border-radius: 16px;
+      border: 1px dashed rgba(255,255,255,.20);
+      background: rgba(0,0,0,.18);
+      padding: 12px;
+      min-height: 180px;
+      display:flex;
+      align-items:center;
+      justify-content:center;
+      text-align:center;
+      color: rgba(232,238,252,.70);
+      font-size: 12.5px;
+    }
+
+    .supportBtn{
+      margin-top: 10px;
+      width:100%;
+      text-align:center;
+      padding: 12px 12px;
+      border-radius: 14px;
+      border: 1px solid rgba(255,255,255,.14);
+      background: rgba(246,196,83,.14);
+      color: rgba(246,196,83,.95);
+      font-weight: 800;
+      text-decoration:none;
+      display:inline-block;
+    }
+
+    .error{
+      margin-top:10px;
+      padding:10px 12px;
+      border-radius: 14px;
+      border:1px solid rgba(255,120,120,.30);
+      background: rgba(255,120,120,.10);
+      color: rgba(255,190,190,.95);
+      display:none;
+      font-size: 13px;
+    }
+
+    @media (max-width: 980px){
+      .below{ grid-template-columns: 1fr; }
+      .range{ width: 100px; }
+    }
+  </style>
+</head>
+
+<body>
+  <div class="wrap">
+
+    <!-- ===== HERO PLAYER ===== -->
+    <div class="hero" id="hero">
+      <div class="videoStage">
+        <video id="video" playsinline preload="metadata"></video>
+
+        <div class="controls" id="controls">
+          <div class="progressRow">
+            <div class="progress" id="progress">
+              <div class="progressFill" id="progressFill"></div>
+            </div>
+          </div>
+
+          <div class="btnRow">
+            <div class="leftBtns">
+              <div class="btn" id="playBtn">▶️ Play</div>
+              <div class="btn" id="prevBtn">⏮️ Prev</div>
+              <div class="btn" id="nextBtn">⏭️ Next</div>
+              <div class="time" id="timeText">00:00 / 00:00</div>
+            </div>
+
+            <div class="rightBtns">
+              <input class="range" id="vol" type="range" min="0" max="1" step="0.05" />
+              <div class="btn" id="muteBtn">🔊</div>
+              <div class="btn" id="fsBtn">⛶ Fullscreen</div>
+            </div>
+          </div>
+        </div>
+      </div>
+
+      <!-- ===== INFO PANEL ===== -->
+      <div class="info">
+        <div class="metaCard">
+          <div class="poster"><img id="posterImg" alt="poster"></div>
+
+          <div>
+            <div class="titleRow">
+              <h1 class="title" id="title">Title</h1>
+              <div class="year" id="year">—</div>
+            </div>
+
+            <div class="tags" id="tags"></div>
+            <div class="desc" id="desc">Description…</div>
+
+            <div class="credits">
+              <div><b>Episode:</b> <span id="epInfo">S1 · E1</span></div>
+              <div><b>Cast:</b> <span id="cast">—</span></div>
+              <div><b>Director:</b> <span id="director">—</span></div>
+            </div>
+
+            <div id="err" class="error"></div>
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <!-- ===== BELOW: PLAYLIST + ADS ===== -->
+    <div class="below">
+      <!-- Playlist panel -->
+      <div class="panel">
+        <div class="panelHeader">
+          <h2>Playlist</h2>
+          <div class="selects">
+            <select id="seasonSelect"></select>
+            <select id="episodeSelect"></select>
+          </div>
+        </div>
+        <div class="episodeList" id="episodeList"></div>
+      </div>
+
+      <!-- Ads panel -->
+      <div class="panel">
+        <div class="panelHeader">
+          <h2>Ads / Monetization</h2>
+        </div>
+        <div class="adsBox">
+          <p class="adsHint">
+            ✅ Put Monetag code in the slots below.
+            <br/>• <b>MultiTag</b> goes in the <code>&lt;head&gt;</code> (top of file).
+            <br/>• <b>Banner/In-Page</b> zone tag can go inside the box below.
+            <br/>• <b>Direct Link</b> can be used for the “Support” button.
+          </p>
+
+          <div class="adSlot">
+            <!-- ==========================================
+              ✅ MONETAG PLACE #2 (Banner / In-Page Push / any zone tag)
+              Monetag → Add zone → copy tag
+              Paste the snippet EXACTLY here.
+            =========================================== -->
+            <div>
+              <div style="font-weight:800; margin-bottom:6px;">Ad Slot</div>
+              <div style="opacity:.85">Paste Monetag banner / in-page code here</div>
+            </div>
+            <!-- MONETAG_BANNER_TAG_HERE -->
+          </div>
+
+          <!-- ==========================================
+            ✅ MONETAG PLACE #3 (Direct Link / SmartLink)
+            Replace zoneid=00000 with your Monetag zone id.
+          =========================================== -->
+          <a class="supportBtn" id="supportBtn"
+             href="//go.oclasrv.com/afu.php?zoneid=00000"
+             target="_blank" rel="noopener">
+            Support (Open Ad)
+          </a>
+        </div>
+      </div>
+    </div>
+
+  </div>
+
+  <script>
+    /* ============================================================
+      ✅ YOUR CONTENT DATA (EDIT THIS)
+      - Put your posters (jpg/png/webp) in a /posters/ folder OR use full URLs.
+      - Put your .m3u8 links in the "src" fields (must be hosted by you).
+      - Add more seasons/episodes easily.
+    ============================================================ */
+    const library = {
+      title: "Vortex Series",
+      year: "2026",
+      tags: ["Adventure", "Sci-Fi", "Drama"],
+      cast: "Actor 1, Actor 2, Actor 3",
+      director: "Director Name",
+      description: "Write your series description here. This text updates based on the selected episode if you want.",
+      poster: "https://images.unsplash.com/photo-1520975869018-bc4b3f9c3ad2?auto=format&fit=crop&w=600&q=70",
+
+      seasons: [
+        {
+          name: "Season 1",
+          seasonNumber: 1,
+          episodes: [
+            {
+              epNumber: 1,
+              title: "Pilot",
+              subtitle: "S1 · E1",
+              poster: "https://images.unsplash.com/photo-1446776811953-b23d57bd21aa?auto=format&fit=crop&w=900&q=70",
+              thumb: "https://images.unsplash.com/photo-1446776811953-b23d57bd21aa?auto=format&fit=crop&w=420&q=60",
+              src: "https://YOUR-DOMAIN.COM/hls/s1e1/master.m3u8"
+            },
+            {
+              epNumber: 2,
+              title: "Second Episode",
+              subtitle: "S1 · E2",
+              poster: "https://images.unsplash.com/photo-1517976547714-720226b864c1?auto=format&fit=crop&w=900&q=70",
+              thumb: "https://images.unsplash.com/photo-1517976547714-720226b864c1?auto=format&fit=crop&w=420&q=60",
+              src: "https://YOUR-DOMAIN.COM/hls/s1e2/master.m3u8"
+            }
+          ]
+        },
+        {
+          name: "Season 2",
+          seasonNumber: 2,
+          episodes: [
+            {
+              epNumber: 1,
+              title: "New Start",
+              subtitle: "S2 · E1",
+              poster: "https://images.unsplash.com/photo-1451187580459-43490279c0fa?auto=format&fit=crop&w=900&q=70",
+              thumb: "https://images.unsplash.com/photo-1451187580459-43490279c0fa?auto=format&fit=crop&w=420&q=60",
+              src: "https://YOUR-DOMAIN.COM/hls/s2e1/master.m3u8"
+            }
+          ]
+        }
+      ]
+    };
+
+    /* ============================================================
+      PLAYER LOGIC
+    ============================================================ */
+    const hero = document.getElementById("hero");
+    const video = document.getElementById("video");
+    const playBtn = document.getElementById("playBtn");
+    const muteBtn = document.getElementById("muteBtn");
+    const fsBtn = document.getElementById("fsBtn");
+    const prevBtn = document.getElementById("prevBtn");
+    const nextBtn = document.getElementById("nextBtn");
+    const progress = document.getElementById("progress");
+    const progressFill = document.getElementById("progressFill");
+    const timeText = document.getElementById("timeText");
+    const vol = document.getElementById("vol");
+
+    const posterImg = document.getElementById("posterImg");
+    const titleEl = document.getElementById("title");
+    const yearEl = document.getElementById("year");
+    const tagsEl = document.getElementById("tags");
+    const descEl = document.getElementById("desc");
+    const castEl = document.getElementById("cast");
+    const directorEl = document.getElementById("director");
+    const epInfoEl = document.getElementById("epInfo");
+    const errEl = document.getElementById("err");
+
+    const seasonSelect = document.getElementById("seasonSelect");
+    const episodeSelect = document.getElementById("episodeSelect");
+    const episodeList = document.getElementById("episodeList");
+
+    let hls = null;
+    let currentSeasonIndex = 0;
+    let currentEpisodeIndex = 0;
+
+    function showError(msg){
+      errEl.style.display = "block";
+      errEl.textContent = msg;
+    }
+    function clearError(){
+      errEl.style.display = "none";
+      errEl.textContent = "";
+    }
+
+    function fmtTime(s){
+      if(!isFinite(s)) return "00:00";
+      s = Math.max(0, Math.floor(s));
+      const m = Math.floor(s/60);
+      const r = s%60;
+      return String(m).padStart(2,"0")+":"+String(r).padStart(2,"0");
+    }
+
+    function setHeroPoster(url){
+      hero.style.setProperty("--bgPoster", `url('${url}')`);
+      posterImg.src = url;
+    }
+
+    function renderMeta(){
+      titleEl.textContent = library.title;
+      yearEl.textContent = library.year;
+      descEl.textContent = library.description;
+      castEl.textContent = library.cast;
+      directorEl.textContent = library.director;
+
+      tagsEl.innerHTML = "";
+      library.tags.forEach((t, i) => {
+        const span = document.createElement("span");
+        span.className = "tag" + (i===0 ? " primary" : "");
+        span.textContent = t;
+        tagsEl.appendChild(span);
+      });
+    }
+
+    function renderSelectors(){
+      seasonSelect.innerHTML = "";
+      library.seasons.forEach((s, idx) => {
+        const opt = document.createElement("option");
+        opt.value = idx;
+        opt.textContent = s.name;
+        seasonSelect.appendChild(opt);
+      });
+
+      seasonSelect.value = String(currentSeasonIndex);
+      renderEpisodeSelector();
+    }
+
+    function renderEpisodeSelector(){
+      const season = library.seasons[currentSeasonIndex];
+      episodeSelect.innerHTML = "";
+      season.episodes.forEach((ep, idx) => {
+        const opt = document.createElement("option");
+        opt.value = idx;
+        opt.textContent = `E${ep.epNumber} — ${ep.title}`;
+        episodeSelect.appendChild(opt);
+      });
+      episodeSelect.value = String(currentEpisodeIndex);
+      renderEpisodeList();
+    }
+
+    function renderEpisodeList(){
+      const season = library.seasons[currentSeasonIndex];
+      episodeList.innerHTML = "";
+
+      season.episodes.forEach((ep, idx) => {
+        const row = document.createElement("div");
+        row.className = "ep" + (idx === currentEpisodeIndex ? " active" : "");
+        row.addEventListener("click", () => {
+          currentEpisodeIndex = idx;
+          episodeSelect.value = String(idx);
+          loadCurrentEpisode(true);
+        });
+
+        const thumb = document.createElement("div");
+        thumb.className = "thumb";
+        const img = document.createElement("img");
+        img.src = ep.thumb || ep.poster || library.poster;
+        img.alt = "thumb";
+        thumb.appendChild(img);
+
+        const text = document.createElement("div");
+        text.className = "epText";
+
+        const t1 = document.createElement("div");
+        t1.className = "epTitle";
+        t1.textContent = `E${ep.epNumber} — ${ep.title}`;
+
+        const t2 = document.createElement("div");
+        t2.className = "epSub";
+        t2.textContent = ep.subtitle || `S${season.seasonNumber} · E${ep.epNumber}`;
+
+        text.appendChild(t1);
+        text.appendChild(t2);
+
+        row.appendChild(thumb);
+        row.appendChild(text);
+        episodeList.appendChild(row);
+      });
+    }
+
+    function destroyHls(){
+      if(hls){
+        hls.destroy();
+        hls = null;
+      }
+    }
+
+    function loadVideoSource(src){
+      clearError();
+
+      if(!src || typeof src !== "string"){
+        showError("No video link found for this episode. Add a valid .m3u8 URL in the library data.");
+        return;
+      }
+
+      const isM3U8 = src.toLowerCase().includes(".m3u8");
+
+      // Reset
+      destroyHls();
+      video.pause();
+      video.removeAttribute("src");
+      video.load();
+
+      if(isM3U8){
+        // Safari can play HLS natively
+        if(video.canPlayType("application/vnd.apple.mpegurl")){
+          video.src = src;
+        } else if(window.Hls && Hls.isSupported()){
+          hls = new Hls({
+            // You can tune these if needed
+            enableWorker: true,
+            lowLatencyMode: true,
+          });
+          hls.loadSource(src);
+          hls.attachMedia(video);
+          hls.on(Hls.Events.ERROR, function (event, data) {
+            if(data && data.fatal){
+              showError("HLS error: " + data.type + " — " + data.details);
+            }
+          });
+        } else {
+          showError("Your browser does not support HLS (.m3u8). Try Safari or use MP4.");
+          return;
+        }
+      } else {
+        // MP4 or other direct sources
+        video.src = src;
+      }
+    }
+
+    function loadCurrentEpisode(autoplay){
+      const season = library.seasons[currentSeasonIndex];
+      const ep = season.episodes[currentEpisodeIndex];
+
+      epInfoEl.textContent = `S${season.seasonNumber} · E${ep.epNumber}`;
+      setHeroPoster(ep.poster || library.poster);
+
+      // If you want per-episode description, add ep.description and use it here:
+      // descEl.textContent = ep.description || library.description;
+
+      loadVideoSource(ep.src);
+
+      // refresh active highlight
+      renderEpisodeList();
+
+      if(autoplay){
+        video.play().catch(()=>{});
+      }
+      updateNavButtons();
+    }
+
+    function updateNavButtons(){
+      const season = library.seasons[currentSeasonIndex];
+      prevBtn.style.opacity = (currentSeasonIndex===0 && currentEpisodeIndex===0) ? .5 : 1;
+      nextBtn.style.opacity = (currentSeasonIndex===library.seasons.length-1 && currentEpisodeIndex===season.episodes.length-1) ? .5 : 1;
+    }
+
+    function prevEpisode(){
+      if(currentSeasonIndex===0 && currentEpisodeIndex===0) return;
+
+      if(currentEpisodeIndex > 0){
+        currentEpisodeIndex--;
+      } else {
+        currentSeasonIndex--;
+        const prevSeason = library.seasons[currentSeasonIndex];
+        currentEpisodeIndex = prevSeason.episodes.length - 1;
+        seasonSelect.value = String(currentSeasonIndex);
+        renderEpisodeSelector();
+      }
+      episodeSelect.value = String(currentEpisodeIndex);
+      loadCurrentEpisode(true);
+    }
+
+    function nextEpisode(){
+      const season = library.seasons[currentSeasonIndex];
+      const isLastSeason = currentSeasonIndex === library.seasons.length-1;
+      const isLastEp = currentEpisodeIndex === season.episodes.length-1;
+
+      if(isLastSeason && isLastEp) return;
+
+      if(currentEpisodeIndex < season.episodes.length-1){
+        currentEpisodeIndex++;
+      } else {
+        currentSeasonIndex++;
+        currentEpisodeIndex = 0;
+        seasonSelect.value = String(currentSeasonIndex);
+        renderEpisodeSelector();
+      }
+      episodeSelect.value = String(currentEpisodeIndex);
+      loadCurrentEpisode(true);
+    }
+
+    // Controls
+    function togglePlay(){
+      if(video.paused){
+        video.play().catch(()=>{});
+      } else {
+        video.pause();
+      }
+    }
+
+    function updatePlayBtn(){
+      playBtn.textContent = video.paused ? "▶️ Play" : "⏸️ Pause";
+    }
+
+    function updateTime(){
+      const cur = fmtTime(video.currentTime);
+      const dur = fmtTime(video.duration);
+      timeText.textContent = `${cur} / ${dur}`;
+
+      const p = (video.duration && isFinite(video.duration)) ? (video.currentTime / video.duration) : 0;
+      progressFill.style.width = `${Math.max(0, Math.min(1, p)) * 100}%`;
+    }
+
+    function seekFromClick(e){
+      const rect = progress.getBoundingClientRect();
+      const x = Math.min(Math.max(0, e.clientX - rect.left), rect.width);
+      const ratio = rect.width ? x / rect.width : 0;
+      if(video.duration && isFinite(video.duration)){
+        video.currentTime = ratio * video.duration;
+      }
+    }
+
+    function toggleMute(){
+      video.muted = !video.muted;
+      muteBtn.textContent = video.muted ? "🔇" : "🔊";
+    }
+
+    function toggleFullscreen(){
+      const el = document.querySelector(".videoStage");
+      if(!document.fullscreenElement){
+        el.requestFullscreen?.();
+      } else {
+        document.exitFullscreen?.();
+      }
+    }
+
+    // Events
+    playBtn.addEventListener("click", togglePlay);
+    video.addEventListener("play", updatePlayBtn);
+    video.addEventListener("pause", updatePlayBtn);
+
+    progress.addEventListener("click", seekFromClick);
+    video.addEventListener("timeupdate", updateTime);
+    video.addEventListener("loadedmetadata", updateTime);
+
+    muteBtn.addEventListener("click", toggleMute);
+    fsBtn.addEventListener("click", toggleFullscreen);
+
+    prevBtn.addEventListener("click", prevEpisode);
+    nextBtn.addEventListener("click", nextEpisode);
+
+    // Auto-next when episode ends
+    video.addEventListener("ended", () => nextEpisode());
+
+    // Volume
+    vol.value = 0.8;
+    video.volume = 0.8;
+    vol.addEventListener("input", () => {
+      video.volume = parseFloat(vol.value);
+      if(video.volume === 0) video.muted = true;
+      else video.muted = false;
+      muteBtn.textContent = video.muted ? "🔇" : "🔊";
+    });
+
+    // Season/Episode selects
+    seasonSelect.addEventListener("change", () => {
+      currentSeasonIndex = parseInt(seasonSelect.value, 10) || 0;
+      currentEpisodeIndex = 0;
+      renderEpisodeSelector();
+      loadCurrentEpisode(false);
+    });
+
+    episodeSelect.addEventListener("change", () => {
+      currentEpisodeIndex = parseInt(episodeSelect.value, 10) || 0;
+      loadCurrentEpisode(true);
+    });
+
+    // Init
+    renderMeta();
+    setHeroPoster(library.poster);
+    renderSelectors();
+    loadCurrentEpisode(false);
+    updatePlayBtn();
+  </script>
+</body>
+</html>
